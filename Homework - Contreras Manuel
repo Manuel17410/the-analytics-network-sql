@@ -391,14 +391,34 @@ UPDATE bkp.product_master_02042023 SET is_local = 'No' WHERE origen!= 'Argentina
 --- 5 Agregar una nueva columna a la tabla de ventas llamada "line_key" que resulte ser la concatenacion de el numero
 ----  de orden y el codigo de producto.
 
+select * from stg.order_line_sale
+
+alter table stg.order_line_sale ADD line_key varchar(20)
+UPDATE stg.order_line_sale SET line_key = concat('-',orden,producto) 
+
 
 --- 6 Eliminar todos los valores de la tabla "order_line_sale" para el POS 1.
 
+DELETE FROM stg.order_line_sale WHERE pos=1
 
 --- 7 Crear una tabla llamada "employees" (por el momento vacia) que tenga un id (creado de forma incremental), nombre,
 ----  apellido, fecha de entrada, fecha salida, telefono, pais, provincia, codigo_tienda, posicion. 
 ----   Decidir cual es el tipo de dato mas acorde.
 
+create table stg.employees(
+		nombre varchar(30),
+		apellido varchar(30),
+		fechadeentrada date,
+		fechadesalida date,
+		telefono int,
+		pais varchar(40),
+		provincia varchar(40),
+		codigo_tienda varchar(10),
+		posicion varchar(40));
+		
+select * from stg.employees
+		
+alter table stg.employees add column personid int auto_increment PRIMARY KEY,
 
 --- 8 Insertar nuevos valores a la tabla "employees" para los siguientes 4 empleados:
 --Juan Perez, 2022-01-01, telefono +541113869867, Argentina, Santa Fe, tienda 2, Vendedor.
