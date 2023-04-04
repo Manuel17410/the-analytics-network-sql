@@ -317,13 +317,13 @@ from stg.store_master
 select * 
 from stg.product_master
 
-select i.sku,avg(i.stock_final) as inventariopromedio,sm.nombre, month(i.fecha) as mes
+select i.sku,avg(i.stock_final) as inventariopromedio,sm.nombre, date_part('month',fecha) as mes 
 from stg.inventory as i
 left join stg.store_master as sm
 on i.tienda = sm.codigo_tienda
 left join stg.product_master as pm
 on i.sku=pm.codigo_producto
-group by i.sku,sm.nombre,i.mes
+group by i.sku,sm.nombre, date_part('month',fecha)
 
 --- 7 Calcular la cantidad de unidades vendidas por material. Para los productos que no tengan material usar
 ----  'Unknown', homogeneizar los textos si es necesario.
@@ -348,6 +348,24 @@ from stg.product_master as pm
 left join stg.order_line_sale as ols
 on pm.codigo_producto = ols.producto
 group by pm.material
+
+--- 8 Mostrar la tabla order_line_sales agregando una columna que represente el valor de venta bruta en cada linea 
+----  convertido a dolares usando la tabla de tipo de cambio.
+
+select * , date_part('month',fecha) as mes 
+from stg.order_line_sale
+
+select *,date_part('month',mes) as mes2
+from stg.monthly_average_fx_rate
+
+select *.order_line_sales
+
+
+--- 9 Calcular cantidad de ventas totales de la empresa en dolares.
+
+---- 10 Mostrar en la tabla de ventas el margen de venta por cada linea. Siendo margen = (venta - promociones) - costo
+----    expresado en dolares.
+--- 11 Calcular la cantidad de items distintos de cada subsubcategoria que se llevan por numero de orden.
 
 
 ------- CLASE 4 ---------
