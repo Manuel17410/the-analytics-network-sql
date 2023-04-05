@@ -365,7 +365,14 @@ select *.order_line_sales
 
 ---- 10 Mostrar en la tabla de ventas el margen de venta por cada linea. Siendo margen = (venta - promociones) - costo
 ----    expresado en dolares.
+
 --- 11 Calcular la cantidad de items distintos de cada subsubcategoria que se llevan por numero de orden.
+
+select pm.subsubcategoria, ols.orden,sum(ols.cantidad) as cantidad_de_items
+from stg.order_line_sale as ols
+left join stg.product_master as pm
+on ols.producto = pm.codigo_producto
+group by subsubcategoria,orden
 
 
 ------- CLASE 4 ---------
