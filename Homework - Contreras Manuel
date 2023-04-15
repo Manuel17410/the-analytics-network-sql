@@ -380,6 +380,28 @@ on date_part('month',ols.fecha) = date_part('month',maver.mes)
 ---- 10 Mostrar en la tabla de ventas el margen de venta por cada linea. Siendo margen = (venta - promociones) - costo
 ----    expresado en dolares.
 
+select ols.*,(ols.venta/(case when ols.moneda = 'ARS' then maver.cotizacion_usd_peso
+when ols.moneda = 'URU' then maver.cotizacion_usd_uru
+else maver.cotizacion_usd_eur end
+)) as ventaendolares,
+(ols.impuestos/(case when ols.moneda = 'ARS' then maver.cotizacion_usd_peso
+when ols.moneda = 'URU' then maver.cotizacion_usd_uru
+else maver.cotizacion_usd_eur end
+)) as impuestoendolares,
+co.costo_promedio_usd,
+(ols.venta/(case when ols.moneda = 'ARS' then maver.cotizacion_usd_peso
+when ols.moneda = 'URU' then maver.cotizacion_usd_uru
+else maver.cotizacion_usd_eur end
+)) - (ols.impuestos/(case when ols.moneda = 'ARS' then maver.cotizacion_usd_peso
+when ols.moneda = 'URU' then maver.cotizacion_usd_uru
+else maver.cotizacion_usd_eur end
+)) - co.costo_promedio_usd as Margen
+from stg.order_line_sale ols
+inner join stg.monthly_average_fx_rate maver
+on date_part('month',ols.fecha) = date_part('month',maver.mes)
+left join stg.cost co
+on ols.producto = co.codigo_producto
+
 --- 11 Calcular la cantidad de items distintos de cada subsubcategoria que se llevan por numero de orden.
 
 select pm.subsubcategoria, ols.orden,sum(ols.cantidad) as cantidad_de_items
