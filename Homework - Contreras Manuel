@@ -706,6 +706,29 @@ select tienda,date(fecha::TEXT), conteo from stg.super_store_count
 ---del ejercicio anterior (Ejercicio 1 Clase 6). Cual hubiese sido la diferencia si hubiesemos tenido una tabla? 
 ---(contestar la ultima pregunta con un texto escrito en forma de comentario)
 
+-- View: stg.ej2clase10
+
+-- DROP VIEW stg.ej2clase10;
+
+CREATE OR REPLACE VIEW stg.ej2clase10
+ AS
+ SELECT market_count.tienda,
+    market_count.fecha::text::date AS date,
+    market_count.conteo
+   FROM stg.market_count
+UNION ALL
+ SELECT super_store_count.tienda,
+    super_store_count.fecha::text::date AS date,
+    super_store_count.conteo
+   FROM stg.super_store_count
+UNION ALL
+ SELECT super_store_count_september.tienda,
+    super_store_count_september.fecha::text::date AS date,
+    super_store_count_september.conteo
+   FROM stg.super_store_count_september;
+ALTER TABLE stg.ej2clase10
+    OWNER TO postgres;
+
 --- 3 Crear una vista con el resultado del ejercicio de la Parte 1 - Clase 3 - Ejercicio 10, donde calculamos el 7
 --- margen bruto en dolares. Agregarle la columna de ventas, descuentos, y creditos en dolares para poder reutilizarla
 ---en un futuro.
