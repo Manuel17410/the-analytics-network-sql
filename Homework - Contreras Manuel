@@ -785,8 +785,24 @@ CREATE OR REPLACE VIEW stg.margenonly
 ALTER TABLE stg.margenonly
     OWNER TO postgres;
 
-Generar una query que me sirva para verificar que el nivel de agregacion de la tabla de ventas (y de la vista) no se haya afectado. Recordas que es el nivel de agregacion/detalle? Lo vimos en la teoria de la parte 1! Nota: La orden M999000061 parece tener un problema verdad? Lo vamos a solucionar mas adelante.
-Calcular el margen bruto a nivel Subcategoria de producto. Usar la vista creada.
+--- 4 Generar una query que me sirva para verificar que el nivel de agregacion de la tabla de ventas (y de la vista) 
+--- no se haya afectado. Recordas que es el nivel de agregacion/detalle? Lo vimos en la teoria de la parte 1! 
+--- Nota: La orden M999000061 parece tener un problema verdad? Lo vamos a solucionar mas adelante.
+
+select codigo_producto,count(1)
+from stg.product_master
+group by codigo_producto
+having count(1)>1
+
+
+--- 5 Calcular el margen bruto a nivel Subcategoria de producto. Usar la vista creada.
+
+select pm.subcategoria,sum(mo.margen) as Margen
+from stg.margenonly as mo
+left join stg.product_master as pm
+on mo.producto=pm.codigo_producto
+group by pm.subcategoria
+
 Calcular la contribucion de las ventas brutas de cada producto al total de la orden. Por esta vez, si necesitas usar una subquery, podes utilizarla.
 Calcular las ventas por proveedor, para eso cargar la tabla de proveedores por producto. Agregar el nombre el proveedor en la vista del punto 3.
 Verificar que el nivel de detalle de la vista anterior no se haya modificado, en caso contrario que se deberia ajustar? Que decision tomarias para que no se genereren duplicados?
