@@ -650,7 +650,11 @@ la segunda parte.
 select * 
 from stg.order_line_sale
 
-select date_part('month',ols.fecha) as mes,
+select count(1) from stg.order_line_sale
+
+truncate table stg.order_line_sale
+
+select date_part('month',ols.fecha) as mes,date_part('year',ols.fecha) as year,
 sum((ols.venta/(case when ols.moneda = 'ARS' then maver.cotizacion_usd_peso
 when ols.moneda = 'URU' then maver.cotizacion_usd_uru
 else maver.cotizacion_usd_eur end
@@ -658,6 +662,23 @@ else maver.cotizacion_usd_eur end
 from stg.order_line_sale ols
 inner join stg.monthly_average_fx_rate maver
 on date_part('month',ols.fecha) = date_part('month',maver.mes)
+group by date_part('year',ols.fecha),date_part('month',ols.fecha)
+order by mes asc
+
+select 
+date_part('month',ols.fecha) as mes,
+round(sum((ols.venta)/(
+		case 
+			when moneda = 'EUR' then maver.cotizacion_usd_eur
+			when moneda = 'ARS' then maver.cotizacion_usd_peso
+			when moneda = 'URU' then maver.cotizacion_usd_uru
+			else 0 
+		end)),2) as ventas_brutas_en_usd
+from stg.order_line_sale ols
+inner join stg.monthly_average_fx_rate maver
+on date_part('month',ols.fecha) = date_part('month',maver.mes)
+LEFT JOIN stg.cost as cst
+ON ols.producto=cst.codigo_producto
 group by date_part('month',ols.fecha)
 
 --- KPI2 VENTAS NETAS = Ventas Brutas  - Descuentos
@@ -665,32 +686,34 @@ group by date_part('month',ols.fecha)
 select date_part('month',ols.fecha) as mes,sum((ols.venta/(case when ols.moneda = 'ARS' then maver.cotizacion_usd_peso
 when ols.moneda = 'URU' then maver.cotizacion_usd_uru
 else maver.cotizacion_usd_eur end
-))  - (ols.descuento/(case when ols.moneda = 'ARS' then maver.cotizacion_usd_peso
+))  + coalesce(ols.descuento,0)/(case when ols.moneda = 'ARS' then maver.cotizacion_usd_peso
 when ols.moneda = 'URU' then maver.cotizacion_usd_uru
 else maver.cotizacion_usd_eur end
-))) as VENTASNETAS
+)) as VENTASNETAS
 from stg.order_line_sale ols
 inner join stg.monthly_average_fx_rate maver
 on date_part('month',ols.fecha) = date_part('month',maver.mes)
 left join stg.cost co
 on ols.producto = co.codigo_producto
 group by date_part('month',ols.fecha)
+order by mes asc
 
 --- KPI3 MARGEN = Ventas netas  - Costo
 
 select date_part('month',ols.fecha) as mes,sum((ols.venta/(case when ols.moneda = 'ARS' then maver.cotizacion_usd_peso
 when ols.moneda = 'URU' then maver.cotizacion_usd_uru
 else maver.cotizacion_usd_eur end
-)) - (ols.impuestos/(case when ols.moneda = 'ARS' then maver.cotizacion_usd_peso
+)) + coalesce(ols.descuento,0)/(case when ols.moneda = 'ARS' then maver.cotizacion_usd_peso
 when ols.moneda = 'URU' then maver.cotizacion_usd_uru
 else maver.cotizacion_usd_eur end
-)) - co.costo_promedio_usd) as Margen
+) - co.costo_promedio_usd) as Margen
 from stg.order_line_sale ols
 inner join stg.monthly_average_fx_rate maver
 on date_part('month',ols.fecha) = date_part('month',maver.mes)
 left join stg.cost co
 on ols.producto = co.codigo_producto
 group by date_part('month',ols.fecha)
+order by mes asc
 
 ---KPI4 Margen por Categoria de Producto
 
@@ -700,10 +723,10 @@ select date_part('month',ols.fecha) as mes,
 sum((ols.venta/(case when ols.moneda = 'ARS' then maver.cotizacion_usd_peso
 when ols.moneda = 'URU' then maver.cotizacion_usd_uru
 else maver.cotizacion_usd_eur end
-)) - (ols.impuestos/(case when ols.moneda = 'ARS' then maver.cotizacion_usd_peso
+)) + coalesce(ols.descuento,0)/(case when ols.moneda = 'ARS' then maver.cotizacion_usd_peso
 when ols.moneda = 'URU' then maver.cotizacion_usd_uru
 else maver.cotizacion_usd_eur end
-)) - co.costo_promedio_usd) as Margen,pm.subcategoria
+) - co.costo_promedio_usd) as Margen,pm.subcategoria
 from stg.order_line_sale ols
 inner join stg.monthly_average_fx_rate maver
 on date_part('month',ols.fecha) = date_part('month',maver.mes)
@@ -712,39 +735,85 @@ on ols.producto = co.codigo_producto
 left join stg.product_master as pm
 on ols.producto = pm.codigo_producto
 group by pm.subcategoria,date_part('month',ols.fecha)
+order by mes asc
 
---- KP5 ROI por categoria de producto. ROI = Valor promedio de inventario / ventas netas
+--- KP5 ROI por categoria de producto. ROI = Valor promedio de inventario / ventas brutas
 
-select * from stg.inventory
+with costo_inventario as (
+select 
+    extract(month from i.fecha) as mes,
+    i.sku,
+    avg((inicial+stock_final)/2 * c1.costo_promedio_usd) as cost_usd
+    from stg.inventory i
+    left join stg.cost c1 
+    on c1.codigo_producto = i.sku
+    group by i.sku, extract(month from i.fecha) 
+)
 
-select * --sum((ols.venta/(case when ols.moneda = 'ARS' then maver.cotizacion_usd_peso
---when ols.moneda = 'URU' then maver.cotizacion_usd_uru
---else maver.cotizacion_usd_eur end
---)) - (ols.impuestos/(case when ols.moneda = 'ARS' then maver.cotizacion_usd_peso
---when ols.moneda = 'URU' then maver.cotizacion_usd_uru
---else maver.cotizacion_usd_eur end
---)) - (ols.descuento/(case when ols.moneda = 'ARS' then maver.cotizacion_usd_peso
---when ols.moneda = 'URU' then maver.cotizacion_usd_uru
---else maver.cotizacion_usd_eur end
---)) - (ols.creditos/(case when ols.moneda = 'ARS' then maver.cotizacion_usd_peso
---when ols.moneda = 'URU' then maver.cotizacion_usd_uru
---else maver.cotizacion_usd_eur end
---)))  as VENTASNETAS
+, ventas_items as (
+select
+    producto,
+    extract(month from fecha) as mes,
+    sum(round(ols.venta/(case 
+    when moneda = 'EUR' then mfx.cotizacion_usd_eur
+    when moneda = 'ARS' then mfx.cotizacion_usd_peso
+    when moneda = 'URU' then mfx.cotizacion_usd_uru
+    else 0 end),1)) as venta_bruta_usd
+from stg.order_line_sale ols
+left join stg.monthly_average_fx_rate mfx 
+	on extract(month from mfx.mes) = extract(month from ols.fecha) 
+	and extract(year from mfx.mes) = extract(year from ols.fecha)  --- Es por si tenes ventas de otro año
+    group by 1,2
+)
+
+
+select 
+    coalesce(i.mes, vi.mes) as mes, -- En este caso para homogeneizar los datos si esta la clave de un lado y no del otro, te conviene aplicar coalesce
+    coalesce(i.sku, vi.producto) as producto,  -- En este caso para homogeneizar los datos si esta la clave de un lado y no del otro, te conviene aplicar coalesce
+    --pm.categoria,
+    sum(cost_usd) as cost_usd,
+    sum(venta_bruta_usd) as venta_usd,
+    sum(coalesce(venta_bruta_usd,0))/sum(cost_usd) as roi
+from costo_inventario i
+full outer join ventas_items vi  -- Se aplica full outer join porque básicamente vos tenes todo de un lado o del otro, como no sabes cual traer, haces full outer
+on i.sku = vi.producto and vi.mes = i.mes
+left join stg.product_master pm -- Es medio al pedo
+on coalesce(i.sku, vi.producto) = pm.codigo_producto -- Es medio al pedo
+where coalesce(i.mes, vi.mes) = 11 -- filtro mes por que es solo el mes que tenemos inventario
+group by 1,2
+
+--- KPI7 AOV (Average order value), valor promedio de la orden
+
+with AOV as(
+select ols.*,
+round((ols.venta)/
+(case 
+			when ols.moneda = 'EUR' then maver.cotizacion_usd_eur
+			when ols.moneda = 'ARS' then maver.cotizacion_usd_peso
+			when ols.moneda = 'URU' then maver.cotizacion_usd_uru
+		end),2) as ventas_brutas,
+date_part('month',ols.fecha) as mes
+-- Trunc(CASE
+--		WHEN ols.moneda='ARS' then (ols.venta+coalesce(ols.descuento,0))/maver.cotizacion_usd_peso
+--		WHEN ols.moneda='EUR' then (ols.venta+coalesce(ols.descuento,0))/maver.cotizacion_usd_eur
+--		WHEN ols.moneda='URU' then (ols.venta+coalesce(ols.descuento,0))/maver.cotizacion_usd_uru
+--	END,2) AS venta_neta_usd,
 from stg.order_line_sale ols
 inner join stg.monthly_average_fx_rate maver
 on date_part('month',ols.fecha) = date_part('month',maver.mes)
-left join stg.cost co
-on ols.producto = co.codigo_producto
-left join stg.inventory as i
-on ols.producto=i.sku
+)
 
---- KPI6 Impuestos pagados
+select mes, round((sum(ventas_brutas)/count (distinct orden)),2) as AOV
+from AOV
+group by mes
+
+--- KPI8 Impuestos pagados
 
 select date_part('month',ols.fecha) as mes,
--1*sum((ols.impuestos/(case when ols.moneda = 'ARS' then maver.cotizacion_usd_peso
+sum(coalesce(ols.impuestos,0)/(case when ols.moneda = 'ARS' then maver.cotizacion_usd_peso
 when ols.moneda = 'URU' then maver.cotizacion_usd_uru
 else maver.cotizacion_usd_eur end
-)) - co.costo_promedio_usd) as IMPUESTOSPAGADOS
+)) as IMPUESTOSPAGADOS
 from stg.order_line_sale ols
 inner join stg.monthly_average_fx_rate maver
 on date_part('month',ols.fecha) = date_part('month',maver.mes)
@@ -753,14 +822,15 @@ on ols.producto = co.codigo_producto
 left join stg.product_master as pm
 on ols.producto = pm.codigo_producto
 group by date_part('month',ols.fecha)
+order by mes asc
 
 ---KPI7 Tasa de impuesto. Impuestos / Ventas netas
 
 select date_part('month',ols.fecha) as mes,
--1*sum((ols.impuestos/(case when ols.moneda = 'ARS' then maver.cotizacion_usd_peso
+-1*sum(coalesce(ols.impuestos,0)/(case when ols.moneda = 'ARS' then maver.cotizacion_usd_peso
 when ols.moneda = 'URU' then maver.cotizacion_usd_uru
 else maver.cotizacion_usd_eur end
-)) - co.costo_promedio_usd)/
+)/
 sum((ols.venta/(case when ols.moneda = 'ARS' then maver.cotizacion_usd_peso
 when ols.moneda = 'URU' then maver.cotizacion_usd_uru
 else maver.cotizacion_usd_eur end
@@ -773,13 +843,83 @@ else maver.cotizacion_usd_eur end
 )) - (ols.creditos/(case when ols.moneda = 'ARS' then maver.cotizacion_usd_peso
 when ols.moneda = 'URU' then maver.cotizacion_usd_uru
 else maver.cotizacion_usd_eur end
-)))  as TASADEIMPUESTO
+))  as TASADEIMPUESTO
 from stg.order_line_sale ols
 inner join stg.monthly_average_fx_rate maver
 on date_part('month',ols.fecha) = date_part('month',maver.mes)
 left join stg.cost co
 on ols.producto = co.codigo_producto
 group by date_part('month',ols.fecha)
+	
+-----TOTO--
+	
+TASA DE IMPUESTO
+-- resuelto ajustado
+SELECT 
+		TO_CHAR(s.fecha, 'YYYY-MM') mes,
+		SUM(
+			CASE 
+			WHEN moneda = 'ARS' THEN COALESCE(impuestos, 0) / cotizacion_usd_peso
+			WHEN moneda = 'EUR' THEN COALESCE(impuestos, 0) / cotizacion_usd_eur
+			ELSE COALESCE(impuestos, 0) / cotizacion_usd_uru END)
+		/ SUM
+		(CASE
+		 WHEN moneda = 'ARS' THEN (venta + coalesce (descuento,0)) / cotizacion_usd_peso
+    	 WHEN moneda = 'EUR' THEN (venta + coalesce (descuento,0)) / cotizacion_usd_eur
+    	 ELSE (venta + coalesce (descuento,0)) / cotizacion_usd_uru END) *100 AS tasa_de_impuesto
+FROM stg.order_line_sale s
+LEFT JOIN stg.monthly_average_fx_rate r
+ON TO_CHAR(s.fecha, 'YYYY-MM') = TO_CHAR(r.mes, 'YYYY-MM')
+GROUP BY 1
+	
+----CTE
+	
+TASA DE IMPUESTO CTE
+
+with impuestos_usd as (
+select 
+date_part('month',ols.fecha) as mes,
+round(coalesce(ols.impuestos,0)/
+(case 
+			when ols.moneda = 'EUR' then maver.cotizacion_usd_eur
+			when ols.moneda = 'ARS' then maver.cotizacion_usd_peso
+			when ols.moneda = 'URU' then maver.cotizacion_usd_uru
+		end),2) as impuestos_pagados
+from stg.order_line_sale ols
+inner join stg.monthly_average_fx_rate maver
+on date_part('month',ols.fecha) = date_part('month',maver.mes)
+LEFT JOIN stg.cost c
+ON ols.producto=c.codigo_producto
+)
+
+, ventas_usd as(
+select 
+round((ols.venta+coalesce(ols.descuento,0))/
+(case 
+			when ols.moneda = 'EUR' then maver.cotizacion_usd_eur
+			when ols.moneda = 'ARS' then maver.cotizacion_usd_peso
+			when ols.moneda = 'URU' then maver.cotizacion_usd_uru
+		end),2) as ventas_netas,
+date_part('month',ols.fecha) as mes
+-- Trunc(CASE
+--		WHEN ols.moneda='ARS' then (ols.venta+coalesce(ols.descuento,0))/maver.cotizacion_usd_peso
+--		WHEN ols.moneda='EUR' then (ols.venta+coalesce(ols.descuento,0))/maver.cotizacion_usd_eur
+--		WHEN ols.moneda='URU' then (ols.venta+coalesce(ols.descuento,0))/maver.cotizacion_usd_uru
+--	END,2) AS venta_neta_usd,
+from stg.order_line_sale ols
+inner join stg.monthly_average_fx_rate maver
+on date_part('month',ols.fecha) = date_part('month',maver.mes)
+)
+
+--select mes, sum(impuestos_pagados) as impuestos_pagados from impuestos_usd group by 1
+--select mes, sum(ventas_netas) as ventas_netas from ventas_usd group by 1
+-- sum(ventas_netas) as ventas_netas, sum(im.impuestos_pagados) as impuestos_pagados,,
+
+select v.mes, round(((sum(im.impuestos_pagados)/sum(ventas_netas))*100),2) as tasa_de_impuestos
+from ventas_usd v
+left join impuestos_usd im
+on im.mes = v.mes
+group by v.mes
 
 --- KPI8 Cantidad de creditos otorgados
 
@@ -788,9 +928,7 @@ from stg.order_line_sale
 group by date_part('month',fecha)
 
 --- KPI9 Valor pagado final por order de linea. Valor pagado: Venta - descuento + impuesto - credito
-??????????????????????????
-select * , venta - descuento + impuestos - creditos as VALORPAGADO ????????????????????????????
-from stg.order_line_sale
+Valor pagado final por order de linea. Valor pagado: Venta - descuento + impuesto - credito
 
 --- 9 Crear un backup de la tabla "cost" agregandole una columna que se llame "last_updated_ts" que sea el momento
 ----  exacto en el cual estemos realizando el backup en formato datetime.
