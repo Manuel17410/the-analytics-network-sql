@@ -1,7 +1,190 @@
+----- Tarea Clase 1 ------
+
+
+--- 1 Mostrar todos los productos dentro de la categoria electro junto con todos los detalles.
+
+select * from stg.product_master
+Where categoria ='Electro'
+
+--- 2 Cuales son los producto producidos en China?
+
+select distinct(nombre),origen
+from stg.product_master
+Where origen = 'China'
+order by nombre
+
+--- 3 Mostrar todos los productos de Electro ordenados por nombre.
+
+select distinct(nombre), categoria
+from stg.product_master
+Where categoria ='Electro'
+Order by nombre
+
+--- 4 Cuales son las TV que se encuentran activas para la venta?
+
+select distinct(nombre),is_active
+from stg.product_master
+where subcategoria ='TV' and is_active ='true'
+
+--- 5 Mostrar todas las tiendas de Argentina ordenadas por fecha de apertura de las mas antigua a la mas nueva.
+
+select codigo_tienda,pais,fecha_apertura
+from stg.store_master
+where pais ='Argentina'
+order by fecha_apertura asc
+
+--- 6 Cuales fueron las ultimas 5 ordenes de ventas?
+
+select orden,fecha
+from stg.order_line_sale
+order by fecha desc
+limit 5
+
+--- 7 Mostrar los primeros 10 registros de el conteo de trafico por Super store ordenados por fecha. 
+
+select *
+from stg.super_store_count
+order by fecha desc
+limit 10
+
+--- 8 Cuales son los producto de electro que no son Soporte de TV ni control remoto.
+
+select nombre,categoria,subsubcategoria
+from stg.product_master
+where categoria = 'Electro' and subsubcategoria not in ('Control remoto', 'Soporte')
+
+---9 Mostrar todas las lineas de venta donde el monto sea mayor a $100.000 solo para transacciones en pesos.
+
+select *
+from stg.order_line_sale
+where venta >100000 and moneda = 'ARS'
+
+--10 Mostrar todas las lineas de ventas de Octubre 2022
+
+select *
+from stg.order_line_sale
+where fecha <'2022-11-01'and fecha > '2022-10-01'
+ 
+--- 11 Mostrar todos los productos que tengan EAN.
+
+select codigo_producto,nombre
+from stg.product_master
+where ean is not null
+
+--- 12 Mostrar todas las lineas de venta que que hayan sido vendidas 
+--- entre 1 de Octubre de 2022 y 10 de Noviembre de 2022.
+
+select *
+from stg.order_line_sale
+where fecha between '2022-01-01' and '2022-10-11'
+
+---------- TAREA 2 ----------
+
+--- 1 Cuales son los paises donde la empresa tiene tiendas?
+
+select distinct (pais) 
+from stg.store_master
+
+--- 2 Cuantos productos por subcategoria tiene disponible para la venta?
+
+select
+	subcategoria,
+	count (codigo_producto)
+from stg.product_master
+where is_active = 'true'
+group by subcategoria
+
+--- 3 Cuales son las ordenes de venta de Argentina de mayor a $100.000?
+
+select orden,moneda, venta
+from stg.order_line_sale
+where moneda = 'ARS' and venta >'100000'
+
+--- 4 Obtener los decuentos otorgados durante Noviembre de 2022 en cada una de las monedas?
+
+select moneda,(sum (descuento))*-1 as descuentootorgado,date_part('month',fecha) as mes
+from stg.order_line_sale
+where fecha between '2022-11-01' and '2022-11-30' and descuento is not null
+group by moneda,mes
+
+--- 5 Obtener los impuestos pagados en Europa durante el 2022
+
+SELECT moneda, SUM(impuestos) AS totalimpuestos, DATE_PART('year', fecha) AS anio
+FROM stg.order_line_sale
+WHERE fecha BETWEEN '2022-01-01' AND '2022-12-31'
+GROUP BY moneda, anio
+HAVING moneda = 'EUR';
+
+--- 6 En cuantas ordenes se utilizaron creditos?
+
+select count (creditos) as ordenes_creditos
+from stg.order_line_sale
+where creditos is not null
+
+--- 7 Cual es el % de descuentos otorgados (sobre las ventas) por tienda?
+
+select tienda, (sum(descuento)/sum(venta) *100)*-1 as tasa_desc
+from stg.order_line_sale
+group by tienda;
+
+--- 8 Cual es el inventario promedio por dia que tiene cada tienda?
+
+select tienda, fecha, avg(Stock_final) as inventariopromedio
+from stg.inventory
+group by tienda,fecha
+
+--- 9 Obtener las ventas netas y el porcentaje de descuento otorgado por producto en Argentina
+
+SELECT producto, moneda, sum(coalesce(venta,0) + coalesce(descuento,0) - coalesce(impuestos,0)+coalesce(creditos,0))
+as ventas_netas, 
+round((coalesce(sum(descuento),0)/(coalesce(sum(venta),0))),4) as descuento_por_producto 
+from stg.order_line_sale 
+where moneda = 'ARS' 
+group by producto, moneda
+
+--- 10 Las tablas "market_count" y "super_store_count" representan dos sistemas distintos que usa la empresa
+--- para contar la cantidad de gente que ingresa a tienda, uno para las tiendas de Latinoamerica y otro para Europa.
+--- Obtener en una unica tabla, las entradas a tienda de ambos sistema
+
+select tienda,date(fecha::TEXT), conteo from stg.market_count
+union all
+select tienda,date(fecha::TEXT), conteo from stg.super_store_count
+
+--- 11 Cuales son los productos disponibles para la venta (activos) de la marca Phillips?
+
+select codigo_producto,nombre,is_active
+from stg.product_master
+where nombre like '%PHILIPS%' and is_active= 'true'
+
+--- 12 Obtener el monto vendido por tienda y moneda y ordenarlo de mayor a menor por valor nominal.
+
+select sum(venta),tienda,moneda
+from stg.order_line_sale
+group by tienda,moneda
+order by sum(venta) desc
+
+--- 13 Cual es el precio promedio de venta de cada producto en las distintas monedas? 
+--- Recorda que los valores de venta, impuesto, descuentos y creditos es por el total de la linea.
+
+select * from stg.order_line_Sale
+
+select producto,moneda,
+avg((coalesce(venta,0) + coalesce(descuento,0) - coalesce(impuestos,0)+coalesce(creditos,0))/cantidad) as precio_promedio
+from stg.order_line_Sale
+group by producto, moneda
+order by producto
+
+--- 14 Cual es la tasa de impuestos que se pago por cada orden de venta?
+
+select orden,impuestos/venta as tasa
+from stg.order_line_Sale
+
+
 ----- Clase 1 ------
 
 --- 1 Cuales son los paises donde la empresa tiene tiendas?
-select distinct (pais) 
+
+select distinct (pais) as pais_empresa_tiene_tiendas
 from stg.store_master
 
 --- 2 Cuantos productos por subcategoria tiene disponible para la venta?
@@ -91,11 +274,9 @@ select tienda,date(fecha::TEXT), conteo from stg.super_store_count
 
 --- 11 Cuales son los productos disponibles para la venta (activos) de la marca Phillips?
 
-
 select *
 from stg.product_master
 where nombre like '%PHILIPS%' and is_active= 'true'
-
 
 --- 12 Obtener el monto vendido por tienda y moneda y ordenarlo de mayor a menor por valor nominal.
 
@@ -118,123 +299,6 @@ from stg.order_line_Sale
 group by orden
 
 
-
----- Clase 2 -----
-
----------- TAREA 2 ----------
-
---- 1 Cuales son los paises donde la empresa tiene tiendas?
-select distinct (pais) 
-from stg.store_master
-
---- 2 Cuantos productos por subcategoria tiene disponible para la venta?
-
-select
-	subcategoria,
-	count (codigo_producto)
-from stg.product_master
-group by subcategoria
-
---- 3 Cuales son las ordenes de venta de Argentina de mayor a $100.000?
-
-select moneda, venta
-from stg.order_line_sale
-where moneda = 'ARS' and venta >'100000'
-
---- 4 Obtener los decuentos otorgados durante Noviembre de 2022 en cada una de las monedas?
-
-select moneda, (sum (descuento))*-1 as descuentootorgado  ----Porque no puedo mostrar la fecha?
-from stg.order_line_sale
-where descuento is not null and fecha between '2022-11-01' and '2022-11-30' 
-group by moneda
-
---- 5 Obtener los impuestos pagados en Europa durante el 2022
-
-select moneda, impuestos, fecha
-from stg.order_line_sale
-where moneda = 'EUR' and fecha  between '2022-01-01' and '2022-12-31'
-
-select moneda, sum(impuestos) as totalimpuestos,fecha -----porque no puedo mostrar fecha?
-from stg.order_line_sale
-group by moneda
-having moneda = 'EUR' and fecha between '2022-01-01'and '2022-12-31'
-
-
---- 6 En cuantas ordenes se utilizaron creditos?
-
-select count (creditos)
-from stg.order_line_sale
-
---- 7 Cual es el % de descuentos otorgados (sobre las ventas) por tienda?
-
-select tienda, sum(impuestos)/sum(venta) *100 as tasa_impuestos
-from stg.order_line_sale
-group by tienda;
-
---- 8 Cual es el inventario promedio por dia que tiene cada tienda?
-
-select * 
-from stg.inventory
-
-select tienda, fecha, avg(Stock_final) as inventariopromedio
-from stg.inventory
-group by tienda,fecha
-
---- 9 Obtener las ventas netas y el porcentaje de descuento otorgado por producto en Argentina
-
-select *
-from stg.order_line_sale
-
-select producto,
-	sum (descuento) / sum (venta) *100 as Porcentaje_Descuento,
-	sum (venta) - sum (descuento) - sum (impuestos) as ventasnetas,
-	producto
-from stg.order_line_sale
-where moneda='ARS'
-group by producto
-
---- 10 Las tablas "market_count" y "super_store_count" representan dos sistemas distintos que usa la empresa
---- para contar la cantidad de gente que ingresa a tienda, uno para las tiendas de Latinoamerica y otro para Europa.
---- Obtener en una unica tabla, las entradas a tienda de ambos sistema
-
-select * 
-from stg.market_count
-
-select fecha 
-from stg.market_count
-
-select tienda,date(fecha::TEXT), conteo from stg.market_count
-union all
-select tienda,date(fecha::TEXT), conteo from stg.super_store_count
-
-
---- 11 Cuales son los productos disponibles para la venta (activos) de la marca Phillips?
-
-
-select *
-from stg.product_master
-where nombre like '%PHILIPS%' and is_active= 'true'
-
-
---- 12 Obtener el monto vendido por tienda y moneda y ordenarlo de mayor a menor por valor nominal.
-
-select sum(venta),tienda,moneda
-from stg.order_line_sale
-group by tienda,moneda
-order by sum(venta) desc
-
---- 13 Cual es el precio promedio de venta de cada producto en las distintas monedas? 
---- Recorda que los valores de venta, impuesto, descuentos y creditos es por el total de la linea.
-
-select * 
-from stg.order_line_Sale
-
---- 14 Cual es la tasa de impuestos que se pago por cada orden de venta?
-
-select * , impuestos/venta as tasa
-from stg.order_line_Sale
-
-
 ---------------------Clase 3 -----------
 
 --- 1 Mostrar nombre y codigo de producto, categoria y color para todos los productos de la marca Philips y Samsung,
@@ -243,19 +307,19 @@ from stg.order_line_Sale
 select * 
 from stg.product_master
 
-select codigo_producto, categoria,
-case when color is null then 'Unkown' else color end as Color
+select codigo_producto, nombre, categoria,
+case when color is null then 'Unknown'
+else color end as color_producto
 from stg.product_master
-where nombre like '%PHILIPS%' or nombre like '%Samsung%'
+where nombre like '%PHILIPS%' or nombre like '%Philips%' 
+or nombre like '%Samsung%' or nombre like '%SAMSUNG%'
 
+select codigo_producto, nombre, categoria, coalesce(color,'Unknown')
+from stg.product_master
+where nombre like '%PHILIPS%' or nombre like '%Philips%' 
+or nombre like '%Samsung%' or nombre like '%SAMSUNG%'
 
 --- 2 Calcular las ventas brutas y los impuestos pagados por pais y provincia en la moneda correspondiente.
-
-select * 
-from stg.order_line_sale
-
-select * 
-from stg.store_master
 	
 select sum(ols.venta) as ventasbrutas, sum(ols.impuestos) as impuestosbrutos, sm.provincia,sm.pais,ols.moneda
 from stg.order_line_sale as ols
@@ -271,16 +335,17 @@ from stg.order_line_sale
 select * 
 from stg.product_master
 
-select sum(ols.venta), ols.moneda, pm.subcategoria
-from stg.order_line_sale as ols
-left join stg.product_master as pm
-on ols.producto= pm.codigo_producto
-group by pm.subcategoria,ols.moneda
+select pm.subcategoria, sls.moneda, sum(coalesce(sls.venta,0)) as ventas_totales
+from stg.product_master pm
+left join stg.order_line_sale sls
+on pm.codigo_producto = sls.producto
+group by pm.subcategoria, sls.moneda
+order by pm.subcategoria, sls.moneda
 
 --- 4 Calcular las unidades vendidas por subcategoria de producto y la concatenacion de pais, provincia;
 ---   usar guion como separador y usarla para ordernar el resultado.
 
-select pm.subcategoria,concat_ws('-',sm.provincia,sm.pais) as provinciapais,sum(ols.cantidad) as sumcantidad
+select pm.subcategoria,concat_ws('-',sm.provincia,sm.pais) as provinciapais,sum(coalesce(ols.cantidad,0)) as sumcantidad
 from stg.order_line_sale as ols
 left join stg.product_master as pm
 on ols.producto= pm.codigo_producto
@@ -298,12 +363,22 @@ from stg.super_store_count
 select * 
 from stg.store_master
 
-select tienda,sum(conteo) as totaldeentradas, sm.nombre
+select tienda,sm.nombre,sum(conteo) as totaldeentradas
 from stg.super_store_count as ssc
 left join stg.store_master as sm
 on ssc.tienda=sm.codigo_tienda
 group by ssc.tienda, sm,nombre
 order by tienda
+
+create view entradas_de_personas_por_tienda as 
+select sm.codigo_tienda, sm.nombre, sm.fecha_apertura, sum(coalesce(conteo,0)) as cantidad_de_entradas_de_personas
+from stg.store_master sm
+left join stg.super_store_count ssc
+on sm.codigo_tienda = ssc.tienda
+group by sm.codigo_tienda, sm.nombre, sm.fecha_apertura
+order by sum(coalesce(conteo,0)) desc
+
+select * from entradas_de_personas_por_tienda
 
 --- 6 Cual es el nivel de inventario promedio en cada mes a nivel de codigo de producto y tienda; 
 ----  mostrar el resultado con el nombre de la tienda.
@@ -317,13 +392,14 @@ from stg.store_master
 select * 
 from stg.product_master
 
-select i.sku,avg(i.stock_final) as inventariopromedio,sm.nombre, date_part('month',fecha) as mes 
+select i.sku,sm.nombre, date_part('month',fecha) as mes,avg(i.stock_final) as inventariopromedio
 from stg.inventory as i
 left join stg.store_master as sm
 on i.tienda = sm.codigo_tienda
 left join stg.product_master as pm
 on i.sku=pm.codigo_producto
 group by i.sku,sm.nombre, date_part('month',fecha)
+order by sm.nombre
 
 --- 7 Calcular la cantidad de unidades vendidas por material. Para los productos que no tengan material usar
 ----  'Unknown', homogeneizar los textos si es necesario.
@@ -348,6 +424,23 @@ from stg.product_master as pm
 left join stg.order_line_sale as ols
 on pm.codigo_producto = ols.producto
 group by pm.material
+
+with material as (
+
+SELECT 
+	*,
+    CASE WHEN material IS NULL THEN 'Unknown'
+    when material = 'PLASTICO' THEN 'Plastico'
+    when material = 'plastico' THEN 'Plastico'
+    ELSE material END as material_consolidado
+FROM stg.order_line_sale AS OLS
+LEFT JOIN stg.product_master AS PM
+    ON OLS.producto = PM.codigo_producto
+)		
+
+select material_consolidado, sum(cantidad)
+from material
+group by material_consolidado
 
 --- 8 Mostrar la tabla order_line_sales agregando una columna que represente el valor de venta bruta en cada linea 
 ----  convertido a dolares usando la tabla de tipo de cambio.
