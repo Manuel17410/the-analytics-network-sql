@@ -457,8 +457,6 @@ from stg.order_line_sale ols
 inner join stg.monthly_average_fx_rate maver
 on date_part('month',ols.fecha) = date_part('month',maver.mes)
 
-
-
 --- 9 Calcular cantidad de ventas totales de la empresa en dolares.
 
 select 
@@ -495,13 +493,33 @@ on date_part('month',ols.fecha) = date_part('month',maver.mes)
 left join stg.cost co
 on ols.producto = co.codigo_producto
 
+with margen_1 as (
+select ols.*,
+(ols.venta/(case when ols.moneda = 'ARS' then maver.cotizacion_usd_peso
+when ols.moneda = 'URU' then maver.cotizacion_usd_uru
+else maver.cotizacion_usd_eur end
+)) as venta_en_dolares,
+(((coalesce(ols.descuento,0)+coalesce(ols.creditos,0))*-1)/(case when ols.moneda = 'ARS' then maver.cotizacion_usd_peso
+when ols.moneda = 'URU' then maver.cotizacion_usd_uru
+else maver.cotizacion_usd_eur end
+)) as promociones_en_dolares,
+c.costo_promedio_usd
+from stg.order_line_sale ols
+inner join stg.monthly_average_fx_rate maver
+on date_part('month',ols.fecha) = date_part('month',maver.mes)
+left join stg.cost c
+on ols.producto = c.codigo_producto
+)
+
+select *, round(((margen_1.venta_en_dolares - margen_1.promociones_en_dolares)-margen_1.costo_promedio_usd),3) as margen_en_dolares from margen_1
+
 --- 11 Calcular la cantidad de items distintos de cada subsubcategoria que se llevan por numero de orden.
 
-select pm.subsubcategoria, ols.orden,sum(ols.cantidad) as cantidad_de_items
-from stg.order_line_sale as ols
-left join stg.product_master as pm
-on ols.producto = pm.codigo_producto
-group by subsubcategoria,orden
+select ols.orden, pm.subcategoria, count (distinct ols.producto) as items_distintos
+from stg.order_line_sale ols
+left join stg.product_master pm
+on pm.codigo_producto = ols.producto
+group by ols.orden, pm.subcategoria
 
 
 ------- CLASE 4 ---------
